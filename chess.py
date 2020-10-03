@@ -16,7 +16,7 @@ class Piece :
                 self.directions = [(-1,0)]
             else :
                 self.directions = [(1,0)]
-            self.range = 1
+            self.range = 1 # this range is extended to 2 programatically when pawn has not yet been moved
         elif name == "knight" :
             self.value = 3
             self.color = color
@@ -28,7 +28,7 @@ class Piece :
             self.directions = [(1,1),(-1,-1),(1,-1),(-1,1)]
             self.range = 7
         elif name == "rook" :
-            self.value = 6
+            self.value = 5
             self.color = color
             self.directions = [(0,1),(1,0),(0,-1),(-1,0)]
             self.range = 7
@@ -38,7 +38,7 @@ class Piece :
             self.directions = [(1,1),(-1,-1),(1,-1),(-1,1),(0,1),(1,0),(0,-1),(-1,0)]
             self.range = 7
         elif name == "king" :
-            self.value = 1000000
+            self.value = 1000
             self.colot = color
             self.directions = [(1,1),(-1,-1),(1,-1),(-1,1),(0,1),(1,0),(0,-1),(-1,0)]
             self.range = 1
@@ -52,14 +52,14 @@ class Board :
         self.board = old_board
 
     def standard_setup(self) :
-        p1 = ["rook","knight","bishop","queen","king","bishop","knight","rook"]
-        p2 = ["pawn"] * 8
-        self.board.append([Piece(p, "black") for p in p1])
-        self.board.append([Piece(p, "black") for p in p2])
-        for n in [3,4,5,6] :
+        pieces = ["rook","knight","bishop","queen","king","bishop","knight","rook"]
+        pawns = ["pawn"] * 8
+        self.board.append([Piece(p, "black") for p in pieces])
+        self.board.append([Piece(p, "black") for p in pawns])
+        for row in [2,3,4,5] :
             self.board.append([None for _ in range(8)])
-        self.board.append([Piece(p, "white") for p in p2])
-        self.board.append([Piece(p, "white") for p in p1])
+        self.board.append([Piece(p, "white") for p in pawns])
+        self.board.append([Piece(p, "white") for p in pieces])
 
     def piece_at_pos(self, row, col) :
         return self.board[row][col]
@@ -272,3 +272,11 @@ while not checkmate :
     board.make_move(move)
     turn = "white" if turn=="black" else "black"
 print("CHECKMATE!")
+
+
+
+
+
+
+# "row" -> "rank" 
+# "col" -> "file"
