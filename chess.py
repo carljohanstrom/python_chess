@@ -2,13 +2,6 @@
 import copy
 import sys
 
-# TBD Implement and use in all objects and functions
-#class Move :
-#    def __init__(self) :
-#        self.piece = None
-#        self.from = None
-#        self.to = None  
-
 
 class Piece :
     def __init__(self, name=None, color=None) :
@@ -250,7 +243,7 @@ def minmax(b, t, max_ply, ply) :
 # MAIN
 
 # SETUP
-playercolor = "white"  # TBD change to "" to allow player to select side
+playercolor = ""
 while playercolor!="black" and playercolor!="white" : 
     playercolor = input("Play black or white? ").lower()
 computercolor = "black" if playercolor == "white" else "white"
