@@ -199,8 +199,6 @@ def is_legal(move, board, player) :
     if (to_row,to_col) not in allowed_moves :
         print("Illegal move. Cannot go there.")
         return False
-    # TBD: invalid? [per piece]
-    # DO MORE CHECKS!
     return True
     #TBD: castling
     #TBD: passant
@@ -274,27 +272,10 @@ while not checkmate :
             user_input = input("Move? ").lower().strip('- ,.:;>/to_')
             move = parse_move(user_input)
     else :
-        print("Computer is thinkning...")
+        print("Computer is thinking...")
         move, calc_value = minmax(board, computercolor, ply_depth, 0)
         print("Makes", to_alfanum(move[1])+to_alfanum(move[2]), "move with", move[0])
         move = move[1],move[2]
     board.make_move(move)
     turn = "white" if turn=="black" else "black"
 print("CHECKMATE!")
-
-
-# TODO
-# [ ] Push to remote Github repo
-# [ ] Improve variable containg a move.
-# [ ] Improve variable containg a move.
-# [ ] Optimize for speed: faster copy of board
-# [ ] Optimize for speed: scorekeeping (instead of recalculation)
-# [ ] Optimize for speed: pruning
-# [ ] Optimize for speed: break when all pieces have been found
-# [ ] Optimize for speed: Keep a separate list of pieces
-# [ ] Implement check
-# [ ] Implement checkmate
-# [ ] Implement draw
-# [ ] Implement quit
-# [ ] Implement resign
-# [ ] Make option to run as process (against each other)
