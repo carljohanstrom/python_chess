@@ -8,14 +8,16 @@ class Piece :
         self.color = color
         self.value = 0
         self.name = name
-        self.unmoved = True
+        self.startrank = -1 # do not care except for pawns, see below
         if name == "pawn" :
             self.value = 1
             self.color = color
             if color=="white" :
                 self.directions = [(-1,0)]
+                self.startrank = 6
             else :
                 self.directions = [(1,0)]
+                self.startrank = 1
             self.range = 1 # this range is extended to 2 programatically when pawn has not yet been moved
         elif name == "knight" :
             self.value = 3
@@ -48,8 +50,9 @@ class Piece :
 
 
 class Board :
-    def __init__(self, old_board = []) :
-        self.board = old_board
+    def __init__(self, a_board = []) :
+        self.board = list([[cell for cell in row] for row in a_board])
+        # make a copy of the board 2D list, but not the pieces
 
     def standard_setup(self) :
         pieces = ["rook","knight","bishop","queen","king","bishop","knight","rook"]
@@ -81,7 +84,7 @@ class Board :
     def moves_for_piece(self, row, col) :
         piece = self.board[row][col]
         reps = piece.range
-        if piece.name == "pawn" and piece.unmoved :
+        if piece.name == "pawn" and row==piece.startrank :
             reps = 2
         moves = []
         for d in piece.directions :
@@ -211,6 +214,7 @@ def parse_move(nnnn) :
     #TBD: castling
 
 
+
 def minmax(b, t, max_ply, ply) :  
     maximizing = (ply%2!=0)
     opt_value = float(0)
@@ -228,7 +232,7 @@ def minmax(b, t, max_ply, ply) :
         move_list = b.all_moves_for_all_pieces(t)
         t = "white" if t=="black" else "black"
         for mv in move_list :
-            next_ply_board = Board(copy.deepcopy(b.board)) # TBD: optimize: only need to copy whole array, not Piece objects
+            next_ply_board = Board(b.board) # TBD: optimize: only need to copy whole array, not Piece objects
             next_ply_board.make_move( (mv[1],mv[2]) )
             om,ov = minmax(next_ply_board, t, max_ply, ply) # Recursion here
             if maximizing : 
@@ -243,7 +247,7 @@ def minmax(b, t, max_ply, ply) :
 # MAIN
 
 # SETUP
-playercolor = ""
+playercolor = "white"
 while playercolor!="black" and playercolor!="white" : 
     playercolor = input("Play black or white? ").lower()
 computercolor = "black" if playercolor == "white" else "white"
