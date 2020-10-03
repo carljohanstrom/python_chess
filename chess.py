@@ -71,9 +71,9 @@ class Board :
         from_row, from_col = move[0]
         to_row, to_col = move[1]
         piece = self.board[from_row][from_col]
-        self.board[from_row][from_col] = None
         piece.unmoved = False
         self.board[to_row][to_col] = piece
+        self.board[from_row][from_col] = None
         #TBD: castling
         #TBD: passant
         #TBD: pawn promotion
@@ -270,6 +270,8 @@ while not checkmate :
         print("Makes", to_alfanum(move[1])+to_alfanum(move[2]), "move with", move[0])
         move = move[1],move[2]
     board.make_move(move)
+    # TBD: Check for checkmate
+    # TBD: Check for stalemate
     turn = "white" if turn=="black" else "black"
 print("CHECKMATE!")
 
@@ -277,6 +279,3 @@ print("CHECKMATE!")
 
 
 
-
-# "row" -> "rank" 
-# "col" -> "file"
