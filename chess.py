@@ -579,11 +579,6 @@ if __name__ == "__main__":
                 ui_alpha = ''.join(ch for ch in ui if ch.isalpha())
                 if ui_alpha in ('q', 'quit'):
                     print('Quitting.')
-                    # print move log before exit
-                    if move_log:
-                        print('Moves so far:')
-                        for m in move_log:
-                            print(m)
                     sys.exit(0)
                 if ui_alpha in ('l', 'log', 'moves'):
                     print('Moves so far:')
