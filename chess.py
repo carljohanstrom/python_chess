@@ -273,6 +273,32 @@ class Board:
                 if self.board[y][x].color != piece.color and piece.name != "pawn":
                     moves.append((y, x))
                     break
+        # Castling: add potential king two-square moves as raw moves (legal filtering later)
+        if piece.name == 'king' and piece.unmoved:
+            r = row
+            # king-side: check for a rook to the right with clear path
+            for c in range(col+1, 8):
+                rcell = self.board[r][c]
+                if rcell is None:
+                    continue
+                if isinstance(rcell, Piece) and rcell.name == 'rook' and rcell.unmoved:
+                    # ensure squares between are empty
+                    if all(self.board[r][cc] is None for cc in range(col+1, c)):
+                        moves.append((r, col+2))
+                    break
+                else:
+                    break
+            # queen-side: to the left
+            for c in range(col-1, -1, -1):
+                rcell = self.board[r][c]
+                if rcell is None:
+                    continue
+                if isinstance(rcell, Piece) and rcell.name == 'rook' and rcell.unmoved:
+                    if all(self.board[r][cc] is None for cc in range(c+1, col)):
+                        moves.append((r, col-2))
+                    break
+                else:
+                    break
         return moves
 
     def moves_for_piece(self, row, col):
@@ -392,12 +418,95 @@ def to_alfanum(t):
     return chr(t[1] + 97) + str(8 - t[0])
 
 
-def parse_move(nnnn):
-    if len(nnnn) != 4:
+def algebraic_to_coord(sq):
+    # sq like 'e4'
+    if len(sq) != 2:
         return None
-    if nnnn[0] not in ("abcdefgh") or nnnn[1] not in ("12345678") or nnnn[2] not in ("abcdefgh") or nnnn[3] not in ("12345678"):
+    f, r = sq[0], sq[1]
+    if f not in 'abcdefgh' or r not in '12345678':
         return None
-    return ((56 - ord(nnnn[1]), ord(nnnn[0]) - 97), (56 - ord(nnnn[3]), ord(nnnn[2]) - 97))
+    return (56 - ord(r), ord(f) - 97)
+
+
+def parse_move(nnnn, board=None, color=None):
+    # Accept long form like e2e4
+    if len(nnnn) == 4 and all(ch.isalnum() for ch in nnnn):
+        if nnnn[0] not in ("abcdefgh") or nnnn[1] not in ("12345678") or nnnn[2] not in ("abcdefgh") or nnnn[3] not in ("12345678"):
+            return None
+        return ((56 - ord(nnnn[1]), ord(nnnn[0]) - 97), (56 - ord(nnnn[3]), ord(nnnn[2]) - 97))
+    # Fallback: try SAN if board and color provided
+    if board is not None and color is not None:
+        return san_to_move(board, nnnn, color)
+    return None
+
+
+def san_to_move(board, san, color):
+    s = san.strip()
+    if not s:
+        return None
+    s = s.replace('+', '').replace('#', '')
+    s = s.replace('x', '')
+    s = s.replace('=', '')
+    s = s.replace('-', '')
+    s = s.replace('*', '')
+    s = s.lower()
+    # Castling
+    if s in ('o o', 'oo', 'o-o', '0-0', 'o o o', 'ooo', 'o-o-o', '0-0-0'):
+        # find king and see castling targets in _raw_moves_for_piece
+        king = board.find_king(color)
+        if king is None:
+            return None
+        row, col = king
+        raw = board._raw_moves_for_piece(row, col)
+        for t in raw:
+            if abs(t[1] - col) >= 2:
+                return ((row, col), t)
+        return None
+    # Promotion notation like e8q handled by destination and later promotion
+    # Pawn moves: like e4 or exd5 handled (we stripped x already)
+    # Piece moves: prefix uppercase letter in SAN; in lowered s piece letter becomes lower
+    piece_letter = None
+    if s[0] in ('k','q','r','b','n'):
+        piece_letter = s[0]
+        dest = s[-2:]
+        disamb = s[1:-2]
+    else:
+        # pawn move
+        piece_letter = 'p'
+        dest = s[-2:]
+        disamb = s[:-2]
+    to = algebraic_to_coord(dest)
+    if to is None:
+        return None
+    # map piece letter to full name
+    letter_map = {'n':'knight','b':'bishop','r':'rook','q':'queen','k':'king','p':'pawn'}
+    target_name = letter_map.get(piece_letter, None)
+    candidates = []
+    for (p, r, c) in board.all_pieces(color):
+        if p.name != target_name:
+            continue
+        raw = board._raw_moves_for_piece(r, c)
+        if to in raw:
+            candidates.append(((r,c), to))
+    if not candidates:
+        return None
+    # apply disambiguation if present (file or rank)
+    if disamb:
+        filt = []
+        for mv in candidates:
+            (fr, fc), _ = mv
+            filec = chr(fc + 97)
+            rankc = str(8 - fr)
+            if disamb == filec or disamb == rankc or disamb == (filec+rankc):
+                filt.append(mv)
+        if filt:
+            candidates = filt
+    # If multiple candidates remain, prefer one that is legal (doesn't leave king in check)
+    for mv in candidates:
+        if not board.would_leave_king_in_check(mv, color):
+            return mv
+    # else return first candidate
+    return candidates[0]
 
 
 def minmax(b, t, max_ply, ply):
@@ -477,7 +586,7 @@ if __name__ == "__main__":
                 # sanitize and parse standard move like 'd2d4' or 'd2 d4' or 'd2 to d4'
                 ui = ui.replace('to', '').replace('-', '')
                 usr = ''.join(ch for ch in ui if ch.isalnum())
-                move = parse_move(usr)
+                move = parse_move(usr, board, playercolor)
                 if move is None:
                     print('Invalid move format. Use e.g. e2e4 or commands q/log')
                     continue
