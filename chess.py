@@ -675,14 +675,18 @@ if __name__ == "__main__":
 
         # After move, check if opponent is in check
         opponent = 'white' if mover == 'black' else 'black'
+        # compute opponent legal moves to decide if it's check or checkmate (avoid printing check when it's checkmate)
+        opp_legal_moves = board.all_moves_for_all_pieces(opponent)
         if board.is_in_check(opponent):
-            print(opponent.upper(), "is in CHECK!")
+            if opp_legal_moves:
+                print(opponent.upper(), "is in CHECK!")
+            # else: suppress check message; checkmate handling below will report
 
         # switch turns
         turn = 'white' if turn == 'black' else 'black'
 
         # check for checkmate/stalemate for the side to move
-        legal_moves = board.all_moves_for_all_pieces(turn)
+        legal_moves = opp_legal_moves if turn == opponent else board.all_moves_for_all_pieces(turn)
         if not legal_moves:
             if board.is_in_check(turn):
                 print("CHECKMATE!", ('White' if turn == 'white' else 'Black'), 'is checkmated')
