@@ -691,4 +691,6 @@ if __name__ == "__main__":
                 print("Stalemate. Draw!")
                 break
     if checkmate:
+        print("\nFinal position at checkmate:")
+        board.printout(playercolor)
         print('Game over')
