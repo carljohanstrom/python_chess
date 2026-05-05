@@ -72,7 +72,19 @@ class Board:
         return self.board[row][col]
 
     def copy(self):
-        nb = Board(self.board)
+        # Deep-copy the board and Piece objects so simulations don't mutate original pieces
+        nb = Board()
+        nb.board = []
+        for row in self.board:
+            newrow = []
+            for cell in row:
+                if cell is None:
+                    newrow.append(None)
+                else:
+                    np = Piece(cell.name, cell.color)
+                    np.unmoved = cell.unmoved
+                    newrow.append(np)
+            nb.board.append(newrow)
         nb.en_passant_target = self.en_passant_target
         nb.en_passant_victim = self.en_passant_victim
         return nb
@@ -86,12 +98,37 @@ class Board:
         return None
 
     def is_square_attacked(self, row, col, by_color):
-        # any opponent piece that has (row,col) among its moves attacks that square
+        # Determine if square (row,col) is attacked by any piece of by_color.
+        # Handle pawn attacks separately (they attack diagonally, not forward).
+        knight_dirs = [(1, 2), (1, -2), (2, 1), (2, -1), (-1, 2), (-1, -2), (-2, 1), (-2, -1)]
+        king_dirs = [(1, 1), (-1, -1), (1, -1), (-1, 1), (0, 1), (1, 0), (0, -1), (-1, 0)]
         for (piece, r, c) in self.all_pieces(by_color):
-            # generate moves for piece without filtering for leaving king in check
-            opts = self._raw_moves_for_piece(r, c)
-            if (row, col) in opts:
-                return True
+            if piece.name == 'pawn':
+                dy = -1 if piece.color == 'white' else 1
+                for dx in (-1, 1):
+                    if (r + dy, c + dx) == (row, col):
+                        return True
+            elif piece.name == 'knight':
+                for d in knight_dirs:
+                    if (r + d[0], c + d[1]) == (row, col):
+                        return True
+            elif piece.name == 'king':
+                for d in king_dirs:
+                    if (r + d[0], c + d[1]) == (row, col):
+                        return True
+            else:
+                # sliding pieces: bishop, rook, queen
+                for d in piece.directions:
+                    for step in range(1, piece.range + 1):
+                        rr = r + d[0] * step
+                        cc = c + d[1] * step
+                        if rr < 0 or rr > 7 or cc < 0 or cc > 7:
+                            break
+                        if (rr, cc) == (row, col):
+                            return True
+                        if self.board[rr][cc] is not None:
+                            # blocked by any piece
+                            break
         return False
 
     def is_in_check(self, color):
