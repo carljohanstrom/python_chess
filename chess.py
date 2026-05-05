@@ -2,6 +2,43 @@
 
 import copy
 import sys
+import os
+
+# Restrict temporary file usage to a 'tmp' directory inside the repository.
+# All helper functions that need to write temp files should use REPO_TMP.
+REPO_ROOT = os.path.dirname(__file__)
+REPO_TMP = os.path.join(REPO_ROOT, 'tmp')
+try:
+    os.makedirs(REPO_TMP, exist_ok=True)
+except Exception:
+    # If creation fails, fall back to in-memory behavior; avoid using system /tmp
+    REPO_TMP = None
+
+
+def repo_temp_path(filename):
+    """Return a safe path inside the repository tmp directory or raise ValueError.
+    Prevents accidental writes outside the repo.
+    """
+    if REPO_TMP is None:
+        raise ValueError('Repository tmp directory not available')
+    # normalize and ensure the result is inside REPO_TMP
+    candidate = os.path.normpath(os.path.join(REPO_TMP, filename))
+    if not candidate.startswith(os.path.normpath(REPO_TMP) + os.sep):
+        raise ValueError('Attempt to access path outside repository tmp')
+    return candidate
+
+
+def save_text_to_repo_tmp(filename, text):
+    path = repo_temp_path(filename)
+    with open(path, 'w', encoding='utf-8') as f:
+        f.write(text)
+
+
+def read_text_from_repo_tmp(filename):
+    path = repo_temp_path(filename)
+    with open(path, 'r', encoding='utf-8') as f:
+        return f.read()
+
 
 
 class Piece:
