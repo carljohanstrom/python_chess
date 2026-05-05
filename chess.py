@@ -475,7 +475,7 @@ if __name__ == "__main__":
                         print(m)
                     continue
                 # sanitize and parse standard move like 'd2d4' or 'd2 d4' or 'd2 to d4'
-                ui = ui.replace('to', '')
+                ui = ui.replace('to', '').replace('-', '')
                 usr = ''.join(ch for ch in ui if ch.isalnum())
                 move = parse_move(usr)
                 if move is None:
