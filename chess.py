@@ -580,8 +580,8 @@ def minmax(b, t, max_ply, ply):
     move_list = b.all_moves_for_all_pieces(t)
     t = "white" if t == "black" else "black"
     for mv in move_list:
-        next_ply_board = Board(b.board)
-        # copy en-passant state for accurate simulation
+        next_ply_board = b.copy()
+        # copy en-passant state for accurate simulation (copy already does this)
         next_ply_board.en_passant_target = b.en_passant_target
         next_ply_board.en_passant_victim = b.en_passant_victim
         next_ply_board.make_move((mv[1], mv[2]))
