@@ -616,7 +616,7 @@ if __name__ == "__main__":
         move = None
         mover = turn
         if turn == playercolor:
-            # player input loop: support commands q/quit, l/log/moves
+            # player input loop: support commands q/quit, l/log/moves and draw offers
             while True:
                 user_input_raw = input("Move? ").strip()
                 if user_input_raw == '':
@@ -633,6 +633,20 @@ if __name__ == "__main__":
                     for m in move_log:
                         print(m)
                     continue
+                if ui_alpha == 'draw':
+                    print('Player offers a draw.')
+                    # simple heuristic: computer accepts if position evaluation is near-equal
+                    comp_eval = board.value(computercolor)
+                    DRAW_ACCEPT_THRESHOLD = 0.5
+                    if abs(comp_eval) < DRAW_ACCEPT_THRESHOLD:
+                        print('Computer accepts the draw.')
+                        print("\nFinal position (draw agreed):")
+                        board.printout(playercolor)
+                        print('Draw agreed. Game over.')
+                        sys.exit(0)
+                    else:
+                        print('Computer declines the draw.')
+                        continue
                 # sanitize and parse standard move like 'd2d4' or 'd2 d4' or 'd2 to d4'
                 ui = ui.replace('to', '').replace('-', '')
                 usr = ''.join(ch for ch in ui if ch.isalnum())
@@ -672,6 +686,21 @@ if __name__ == "__main__":
                 moved_piece, (tr, tc) = moved_info
                 if moved_piece.name == 'pawn' and (tr == 0 or tr == 7):
                     board.board[tr][tc] = Piece('queen', moved_piece.color)
+            # Computer may offer a draw if the evaluation is nearly equal
+            DRAW_OFFER_THRESHOLD = 0.2
+            try:
+                if abs(calc_value) < DRAW_OFFER_THRESHOLD:
+                    print("Computer offers a draw.")
+                    ans = input("Accept draw? (y/n) ").strip().lower()
+                    if ans in ('y', 'yes'):
+                        print("\nFinal position (draw agreed):")
+                        board.printout(playercolor)
+                        print('Draw agreed. Game over.')
+                        sys.exit(0)
+                    else:
+                        print('Player declines draw.')
+            except Exception:
+                pass
 
         # After move, check if opponent is in check
         opponent = 'white' if mover == 'black' else 'black'
