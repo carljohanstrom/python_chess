@@ -365,7 +365,25 @@ def is_legal(move, board, player):
         return False
     allowed_moves = board.moves_for_piece(from_row, from_col)
     if (to_row, to_col) not in allowed_moves:
-        print("Illegal move. Cannot go there or move leaves king in check.")
+        # Distinguish between "cannot move there" and "move leaves king in check"
+        raw_moves = board._raw_moves_for_piece(from_row, from_col)
+        if (to_row, to_col) not in raw_moves:
+            print("Illegal move. Cannot go there.")
+            return False
+        # It is a raw move but illegal because it leaves the king in check. Show attackers after the move.
+        nb = board.copy()
+        nb.make_move(move)
+        opp = 'white' if player == 'black' else 'black'
+        kingpos = nb.find_king(player)
+        attackers = []
+        for (p, r, c) in nb.all_pieces(opp):
+            if kingpos in nb._raw_moves_for_piece(r, c):
+                attackers.append((p.name, r, c))
+        if attackers:
+            s = ", ".join([f"{name}@{to_alfanum((r,c))}" for (name, r, c) in attackers])
+            print(f"Illegal move. Move would leave king in check from: {s}")
+        else:
+            print("Illegal move. Move would leave king in check.")
         return False
     return True
 
@@ -425,6 +443,7 @@ if __name__ == "__main__":
 
     board = Board()
     board.standard_setup()
+    move_log = []
 
     # PLAY
     while not checkmate:
@@ -433,11 +452,42 @@ if __name__ == "__main__":
         move = None
         mover = turn
         if turn == playercolor:
-            while not is_legal(move, board, playercolor):
-                user_input = input("Move? ").lower().replace('to', '')
-                user_input = ''.join(ch for ch in user_input if ch.isalnum())
-                move = parse_move(user_input)
+            # player input loop: support commands q/quit, l/log/moves
+            while True:
+                user_input_raw = input("Move? ").strip()
+                if user_input_raw == '':
+                    continue
+                ui = user_input_raw.lower()
+                ui_alpha = ''.join(ch for ch in ui if ch.isalpha())
+                if ui_alpha in ('q', 'quit'):
+                    print('Quitting.')
+                    # print move log before exit
+                    if move_log:
+                        print('Moves so far:')
+                        for m in move_log:
+                            print(m)
+                    sys.exit(0)
+                if ui_alpha in ('l', 'log', 'moves'):
+                    print('Moves so far:')
+                    if not move_log:
+                        print('(no moves yet)')
+                    for m in move_log:
+                        print(m)
+                    continue
+                # sanitize and parse standard move like 'd2d4' or 'd2 d4' or 'd2 to d4'
+                ui = ui.replace('to', '')
+                usr = ''.join(ch for ch in ui if ch.isalnum())
+                move = parse_move(usr)
+                if move is None:
+                    print('Invalid move format. Use e.g. e2e4 or commands q/log')
+                    continue
+                if not is_legal(move, board, playercolor):
+                    # is_legal prints reason
+                    continue
+                break
             moved_info = board.make_move(move)
+            # log player move
+            move_log.append(f"{playercolor}: {to_alfanum(move[0])}{to_alfanum(move[1])}")
             # promotion for player
             if moved_info:
                 moved_piece, (tr, tc) = moved_info
@@ -456,6 +506,8 @@ if __name__ == "__main__":
             print("Makes", to_alfanum(mv[1]) + to_alfanum(mv[2]), "move with", mv[0])
             move = (mv[1], mv[2])
             moved_info = board.make_move(move)
+            # log computer move
+            move_log.append(f"{computercolor}: {to_alfanum(move[0])}{to_alfanum(move[1])}")
             # auto-promotion to queen for computer
             if moved_info:
                 moved_piece, (tr, tc) = moved_info
