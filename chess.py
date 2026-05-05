@@ -394,7 +394,16 @@ def is_legal(move, board, player):
         # Distinguish between "cannot move there" and "move leaves king in check"
         raw_moves = board._raw_moves_for_piece(from_row, from_col)
         if (to_row, to_col) not in raw_moves:
-            print("Illegal move. Cannot go there.")
+            piece = board.piece_at_pos(from_row, from_col)
+            # Provide diagnostics to help understand why move isn't a raw move
+            print(f"Illegal move. Cannot go there.")
+            print(f"Piece at from: {piece} at {to_alfanum((from_row,from_col))} \nRaw moves: {raw_moves}")
+            # show occupancy of immediate forward squares for pawn
+            if piece.name=='pawn':
+                fr1 = board.piece_at_pos(from_row-1, from_col) if piece.color=='white' and from_row-1>=0 else (board.piece_at_pos(from_row+1,from_col) if piece.color=='black' and from_row+1<=7 else None)
+                fr2 = board.piece_at_pos(from_row-2, from_col) if piece.color=='white' and from_row-2>=0 else (board.piece_at_pos(from_row+2,from_col) if piece.color=='black' and from_row+2<=7 else None)
+                print('Forward square 1 occupancy:', fr1)
+                print('Forward square 2 occupancy:', fr2)
             return False
         # It is a raw move but illegal because it leaves the king in check. Show attackers after the move.
         nb = board.copy()
