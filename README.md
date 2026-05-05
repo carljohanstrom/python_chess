@@ -14,14 +14,14 @@ A Simple chess game written in Python as a one-day exercise. Very slow right now
 - [ ] Optimize for speed: Keep a separate list of pieces
 - [ ] Optimize for speed: do not use strings as ids
 - [ ] Implement a function to set the difficult level (i.e. max ply_depth)
-- [ ] Implement check
-- [ ] Implement checkmate warning
-- [ ] Implement illegal moves parsing when in checkmate
-- [ ] Implement castling
-- [ ] Implement pawn promotion (maybe to tower to avoid stale mate)
-- [ ] Implement en passant
+- [X] Implement check
+- [X] Implement checkmate warning
+- [X] Implement illegal moves parsing when in checkmate
+- [X] Implement castling
+- [X] Implement pawn promotion (maybe to tower to avoid stale mate)
+- [X] Implement en passant
 - [ ] Implement stalemate
-- [ ] Implement quit
+- [X] Implement quit
 - [ ] Implement draw (offered by computer)
 - [ ] Implement draw (offered by player)
 - [ ] Implement resign (computer)
