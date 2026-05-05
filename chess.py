@@ -71,10 +71,46 @@ class Board:
     def piece_at_pos(self, row, col):
         return self.board[row][col]
 
+    def copy(self):
+        nb = Board(self.board)
+        nb.en_passant_target = self.en_passant_target
+        nb.en_passant_victim = self.en_passant_victim
+        return nb
+
+    def find_king(self, color):
+        for r in range(8):
+            for c in range(8):
+                p = self.board[r][c]
+                if p is not None and p.name == 'king' and p.color == color:
+                    return (r, c)
+        return None
+
+    def is_square_attacked(self, row, col, by_color):
+        # any opponent piece that has (row,col) among its moves attacks that square
+        for (piece, r, c) in self.all_pieces(by_color):
+            # generate moves for piece without filtering for leaving king in check
+            opts = self._raw_moves_for_piece(r, c)
+            if (row, col) in opts:
+                return True
+        return False
+
+    def is_in_check(self, color):
+        kingpos = self.find_king(color)
+        if kingpos is None:
+            return False
+        opp = 'white' if color == 'black' else 'black'
+        return self.is_square_attacked(kingpos[0], kingpos[1], opp)
+
+    def would_leave_king_in_check(self, move, color):
+        nb = self.copy()
+        nb.make_move(move)
+        return nb.is_in_check(color)
+
     def make_move(self, move):
         """
         Executes a move and returns (moved_piece, (to_row,to_col)) or None.
         Handles en-passant and castling (basic rules), sets en_passant target for double-step pawns.
+        Castling disallowed if king is in/through/out into check.
         """
         if move is None:
             self.en_passant_target = None
@@ -87,14 +123,11 @@ class Board:
             self.en_passant_victim = None
             return None
 
-        # --- En-passant capture detection: if moving pawn to en_passant_target (square is empty) ---
-        if piece.name == "pawn" and self.en_passant_target is not None and (to_row, to_col) == self.en_passant_target and self.board[to_row][to_col] is None:
-            # remove the victim pawn stored
-            vr, vc = self.en_passant_victim
-            self.board[vr][vc] = None
-
-        # --- Castling: detect king move by >=2 cols and both king/rook unmoved and path clear ---
+        # --- Castling detection and validation ---
         if piece.name == "king" and abs(to_col - from_col) >= 2 and piece.unmoved:
+            # cannot castle if currently in check
+            if self.is_in_check(piece.color):
+                return None
             # king-side
             if to_col > from_col:
                 # find rook to the right
@@ -107,22 +140,25 @@ class Board:
                         break
                 if rook_col is not None and rook.unmoved:
                     # squares between must be empty
-                    between_clear = all(self.board[from_row][c] is None for c in range(from_col + 1, rook_col))
-                    if between_clear:
-                        # move king
+                    between = [self.board[from_row][c] for c in range(from_col + 1, rook_col)]
+                    if all(x is None for x in between):
+                        # squares king passes through
+                        pass_squares = [(from_row, from_col + 1), (from_row, from_col + 2)]
+                        opp = 'white' if piece.color == 'black' else 'black'
+                        if any(self.is_square_attacked(r, c, opp) for (r, c) in pass_squares):
+                            return None
+                        # perform castling
                         self.board[to_row][to_col] = piece
                         self.board[from_row][from_col] = None
-                        # move rook to square left of king
                         self.board[from_row][to_col - 1] = rook
                         self.board[from_row][rook_col] = None
                         piece.unmoved = False
                         rook.unmoved = False
-                        # clear en-passant
                         self.en_passant_target = None
                         self.en_passant_victim = None
                         return (piece, (to_row, to_col))
             else:
-                # queen-side: find rook to the left
+                # queen-side
                 rook_col = None
                 for c in range(0, from_col):
                     r = self.board[from_row][c]
@@ -131,11 +167,14 @@ class Board:
                         rook = r
                         break
                 if rook_col is not None and rook.unmoved:
-                    between_clear = all(self.board[from_row][c] is None for c in range(rook_col + 1, from_col))
-                    if between_clear:
+                    between = [self.board[from_row][c] for c in range(rook_col + 1, from_col)]
+                    if all(x is None for x in between):
+                        pass_squares = [(from_row, from_col - 1), (from_row, from_col - 2)]
+                        opp = 'white' if piece.color == 'black' else 'black'
+                        if any(self.is_square_attacked(r, c, opp) for (r, c) in pass_squares):
+                            return None
                         self.board[to_row][to_col] = piece
                         self.board[from_row][from_col] = None
-                        # move rook to square right of king
                         self.board[from_row][to_col + 1] = rook
                         self.board[from_row][rook_col] = None
                         piece.unmoved = False
@@ -144,14 +183,17 @@ class Board:
                         self.en_passant_victim = None
                         return (piece, (to_row, to_col))
 
-        # --- Normal move ---
-        # set en-passant target if pawn moved two squares
+        # --- En-passant capture detection ---
+        if piece.name == "pawn" and self.en_passant_target is not None and (to_row, to_col) == self.en_passant_target and self.board[to_row][to_col] is None:
+            vr, vc = self.en_passant_victim
+            self.board[vr][vc] = None
+
+        # --- Normal move: set en-passant target for double-step pawns ---
         if piece.name == "pawn" and abs(to_row - from_row) == 2:
             passed_row = (from_row + to_row) // 2
             self.en_passant_target = (passed_row, from_col)
             self.en_passant_victim = (to_row, from_col)
         else:
-            # any other move clears en-passant opportunity
             self.en_passant_target = None
             self.en_passant_victim = None
 
@@ -160,7 +202,8 @@ class Board:
         self.board[from_row][from_col] = None
         return (piece, (to_row, to_col))
 
-    def moves_for_piece(self, row, col):
+    def _raw_moves_for_piece(self, row, col):
+        # same as previous moves_for_piece but without legality filtering
         piece = self.board[row][col]
         if piece is None:
             return []
@@ -175,21 +218,17 @@ class Board:
                     break
                 if piece.name == "pawn" and p == 1:
                     # captures (normal)
-                    # left
                     if x - 1 >= 0:
                         if self.board[y][x - 1] is not None and self.board[y][x - 1].color != piece.color:
                             moves.append((y, x - 1))
-                        # en-passant capture to that square
                         if self.en_passant_target == (y, x - 1):
                             moves.append((y, x - 1))
-                    # right
                     if x + 1 <= 7:
                         if self.board[y][x + 1] is not None and self.board[y][x + 1].color != piece.color:
                             moves.append((y, x + 1))
                         if self.en_passant_target == (y, x + 1):
                             moves.append((y, x + 1))
                 if self.board[y][x] is None:
-                    # forward move
                     moves.append((y, x))
                     continue
                 if self.board[y][x].color == piece.color:
@@ -198,6 +237,19 @@ class Board:
                     moves.append((y, x))
                     break
         return moves
+
+    def moves_for_piece(self, row, col):
+        # returns legal moves (do not leave own king in check)
+        raw = self._raw_moves_for_piece(row, col)
+        piece = self.board[row][col]
+        if piece is None:
+            return []
+        legal = []
+        for to in raw:
+            mv = ((row, col), to)
+            if not self.would_leave_king_in_check(mv, piece.color):
+                legal.append(to)
+        return legal
 
     def all_pieces(self, color):
         pieces = []
@@ -276,7 +328,7 @@ def is_legal(move, board, player):
         return False
     allowed_moves = board.moves_for_piece(from_row, from_col)
     if (to_row, to_col) not in allowed_moves:
-        print("Illegal move. Cannot go there.")
+        print("Illegal move. Cannot go there or move leaves king in check.")
         return False
     return True
 
@@ -342,6 +394,7 @@ if __name__ == "__main__":
         board.printout(playercolor)
         print("Value for playercolor:", board.value(playercolor))
         move = None
+        mover = turn
         if turn == playercolor:
             while not is_legal(move, board, playercolor):
                 user_input = input("Move? ").lower().replace('to', '')
@@ -372,6 +425,22 @@ if __name__ == "__main__":
                 if moved_piece.name == 'pawn' and (tr == 0 or tr == 7):
                     board.board[tr][tc] = Piece('queen', moved_piece.color)
 
-        # TODO: check for checkmate/stalemate
-        turn = "white" if turn == "black" else "black"
-    print("CHECKMATE!")
+        # After move, check if opponent is in check
+        opponent = 'white' if mover == 'black' else 'black'
+        if board.is_in_check(opponent):
+            print(opponent.upper(), "is in CHECK!")
+
+        # switch turns
+        turn = 'white' if turn == 'black' else 'black'
+
+        # check for checkmate/stalemate for the side to move
+        legal_moves = board.all_moves_for_all_pieces(turn)
+        if not legal_moves:
+            if board.is_in_check(turn):
+                print("CHECKMATE!", ('White' if turn == 'white' else 'Black'), 'is checkmated')
+                checkmate = True
+            else:
+                print("Stalemate. Draw!")
+                break
+    if checkmate:
+        print('Game over')
