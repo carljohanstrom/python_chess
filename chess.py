@@ -54,6 +54,8 @@ class Board:
         else:
             # copy rows but keep piece objects (shallow copy of pieces)
             self.board = [list(row) for row in a_board]
+        self.en_passant_target = None  # square where en-passant capture can land
+        self.en_passant_victim = None  # coordinate of pawn that can be captured en-passant
 
     def standard_setup(self):
         pieces = ["rook", "knight", "bishop", "queen", "king", "bishop", "knight", "rook"]
@@ -70,15 +72,93 @@ class Board:
         return self.board[row][col]
 
     def make_move(self, move):
+        """
+        Executes a move and returns (moved_piece, (to_row,to_col)) or None.
+        Handles en-passant and castling (basic rules), sets en_passant target for double-step pawns.
+        """
         if move is None:
-            return
+            self.en_passant_target = None
+            self.en_passant_victim = None
+            return None
         (from_row, from_col), (to_row, to_col) = move
         piece = self.board[from_row][from_col]
         if piece is None:
-            return
+            self.en_passant_target = None
+            self.en_passant_victim = None
+            return None
+
+        # --- En-passant capture detection: if moving pawn to en_passant_target (square is empty) ---
+        if piece.name == "pawn" and self.en_passant_target is not None and (to_row, to_col) == self.en_passant_target and self.board[to_row][to_col] is None:
+            # remove the victim pawn stored
+            vr, vc = self.en_passant_victim
+            self.board[vr][vc] = None
+
+        # --- Castling: detect king move by >=2 cols and both king/rook unmoved and path clear ---
+        if piece.name == "king" and abs(to_col - from_col) >= 2 and piece.unmoved:
+            # king-side
+            if to_col > from_col:
+                # find rook to the right
+                rook_col = None
+                for c in range(7, from_col, -1):
+                    r = self.board[from_row][c]
+                    if isinstance(r, Piece) and r.name == "rook":
+                        rook_col = c
+                        rook = r
+                        break
+                if rook_col is not None and rook.unmoved:
+                    # squares between must be empty
+                    between_clear = all(self.board[from_row][c] is None for c in range(from_col + 1, rook_col))
+                    if between_clear:
+                        # move king
+                        self.board[to_row][to_col] = piece
+                        self.board[from_row][from_col] = None
+                        # move rook to square left of king
+                        self.board[from_row][to_col - 1] = rook
+                        self.board[from_row][rook_col] = None
+                        piece.unmoved = False
+                        rook.unmoved = False
+                        # clear en-passant
+                        self.en_passant_target = None
+                        self.en_passant_victim = None
+                        return (piece, (to_row, to_col))
+            else:
+                # queen-side: find rook to the left
+                rook_col = None
+                for c in range(0, from_col):
+                    r = self.board[from_row][c]
+                    if isinstance(r, Piece) and r.name == "rook":
+                        rook_col = c
+                        rook = r
+                        break
+                if rook_col is not None and rook.unmoved:
+                    between_clear = all(self.board[from_row][c] is None for c in range(rook_col + 1, from_col))
+                    if between_clear:
+                        self.board[to_row][to_col] = piece
+                        self.board[from_row][from_col] = None
+                        # move rook to square right of king
+                        self.board[from_row][to_col + 1] = rook
+                        self.board[from_row][rook_col] = None
+                        piece.unmoved = False
+                        rook.unmoved = False
+                        self.en_passant_target = None
+                        self.en_passant_victim = None
+                        return (piece, (to_row, to_col))
+
+        # --- Normal move ---
+        # set en-passant target if pawn moved two squares
+        if piece.name == "pawn" and abs(to_row - from_row) == 2:
+            passed_row = (from_row + to_row) // 2
+            self.en_passant_target = (passed_row, from_col)
+            self.en_passant_victim = (to_row, from_col)
+        else:
+            # any other move clears en-passant opportunity
+            self.en_passant_target = None
+            self.en_passant_victim = None
+
         piece.unmoved = False
         self.board[to_row][to_col] = piece
         self.board[from_row][from_col] = None
+        return (piece, (to_row, to_col))
 
     def moves_for_piece(self, row, col):
         piece = self.board[row][col]
@@ -94,11 +174,20 @@ class Board:
                 if y < 0 or y > 7 or x < 0 or x > 7:
                     break
                 if piece.name == "pawn" and p == 1:
-                    # captures
-                    if x + 1 <= 7 and self.board[y][x + 1] is not None and self.board[y][x + 1].color != piece.color:
-                        moves.append((y, x + 1))
-                    if x - 1 >= 0 and self.board[y][x - 1] is not None and self.board[y][x - 1].color != piece.color:
-                        moves.append((y, x - 1))
+                    # captures (normal)
+                    # left
+                    if x - 1 >= 0:
+                        if self.board[y][x - 1] is not None and self.board[y][x - 1].color != piece.color:
+                            moves.append((y, x - 1))
+                        # en-passant capture to that square
+                        if self.en_passant_target == (y, x - 1):
+                            moves.append((y, x - 1))
+                    # right
+                    if x + 1 <= 7:
+                        if self.board[y][x + 1] is not None and self.board[y][x + 1].color != piece.color:
+                            moves.append((y, x + 1))
+                        if self.en_passant_target == (y, x + 1):
+                            moves.append((y, x + 1))
                 if self.board[y][x] is None:
                     # forward move
                     moves.append((y, x))
@@ -221,6 +310,9 @@ def minmax(b, t, max_ply, ply):
     t = "white" if t == "black" else "black"
     for mv in move_list:
         next_ply_board = Board(b.board)
+        # copy en-passant state for accurate simulation
+        next_ply_board.en_passant_target = b.en_passant_target
+        next_ply_board.en_passant_victim = b.en_passant_victim
         next_ply_board.make_move((mv[1], mv[2]))
         om, ov = minmax(next_ply_board, t, max_ply, ply)
         if maximizing:
@@ -255,15 +347,31 @@ if __name__ == "__main__":
                 user_input = input("Move? ").lower().replace('to', '')
                 user_input = ''.join(ch for ch in user_input if ch.isalnum())
                 move = parse_move(user_input)
+            moved_info = board.make_move(move)
+            # promotion for player
+            if moved_info:
+                moved_piece, (tr, tc) = moved_info
+                if moved_piece.name == 'pawn' and (tr == 0 or tr == 7):
+                    choice = ''
+                    while choice not in ('q', 'r', 'b', 'n'):
+                        choice = input("Promote pawn to (q)ueen/(r)ook/(b)ishop/(n)ight? ").lower()
+                    mapping = {'q': 'queen', 'r': 'rook', 'b': 'bishop', 'n': 'knight'}
+                    board.board[tr][tc] = Piece(mapping[choice], moved_piece.color)
         else:
             print("Computer is thinking...")
-            move, calc_value = minmax(board, computercolor, ply_depth, 0)
-            if move is None:
+            mv, calc_value = minmax(board, computercolor, ply_depth, 0)
+            if mv is None:
                 print("No moves found")
                 break
-            print("Makes", to_alfanum(move[1]) + to_alfanum(move[2]), "move with", move[0])
-            move = (move[1], move[2])
-        board.make_move(move)
+            print("Makes", to_alfanum(mv[1]) + to_alfanum(mv[2]), "move with", mv[0])
+            move = (mv[1], mv[2])
+            moved_info = board.make_move(move)
+            # auto-promotion to queen for computer
+            if moved_info:
+                moved_piece, (tr, tc) = moved_info
+                if moved_piece.name == 'pawn' and (tr == 0 or tr == 7):
+                    board.board[tr][tc] = Piece('queen', moved_piece.color)
+
         # TODO: check for checkmate/stalemate
         turn = "white" if turn == "black" else "black"
     print("CHECKMATE!")
